@@ -30,9 +30,6 @@ public class RoomParametersFetcher {
   private final String roomUrl;
   private final String roomMessage;
 
-  /**
-   * Room parameters fetcher callbacks.
-   */
   public interface RoomParametersFetcherEvents {
     /**
      * Callback fired once the room's signaling parameters
@@ -40,9 +37,6 @@ public class RoomParametersFetcher {
      */
     void onSignalingParametersReady(final AppRTCClient.SignalingParameters params);
 
-    /**
-     * Callback for room parameters extraction error.
-     */
     void onSignalingParametersError(final String description);
   }
 
@@ -56,7 +50,6 @@ public class RoomParametersFetcher {
     AsyncHttpURLConnection httpConnection = new AsyncHttpURLConnection("POST", roomUrl, roomMessage, new AsyncHttpURLConnection.AsyncHttpEvents() {
       @Override
       public void onHttpError(String errorMessage) {
-        Log.e(TAG, "Room connection error: " + errorMessage);
         events.onSignalingParametersError(errorMessage);
       }
 
@@ -82,7 +75,6 @@ public class RoomParametersFetcher {
       }
       response = roomJson.getString("params");
       roomJson = new JSONObject(response);
-      String roomId = roomJson.getString("room_id");
       String clientId = roomJson.getString("client_id");
       String wssUrl = roomJson.getString("wss_url");
       String wssPostUrl = roomJson.getString("wss_post_url");
@@ -95,26 +87,18 @@ public class RoomParametersFetcher {
           String messageString = messages.getString(i);
           JSONObject message = new JSONObject(messageString);
           String messageType = message.getString("type");
-          Log.d(TAG, "GAE->C #" + i + " : " + messageString);
           if (messageType.equals("offer")) {
-            offerSdp = new SessionDescription(
-                SessionDescription.Type.fromCanonicalForm(messageType), message.getString("sdp"));
+            offerSdp = new SessionDescription(SessionDescription.Type.fromCanonicalForm(messageType), message.getString("sdp"));
           } else if (messageType.equals("candidate")) {
-            IceCandidate candidate = new IceCandidate(
-                message.getString("id"), message.getInt("label"), message.getString("candidate"));
+            IceCandidate candidate = new IceCandidate(message.getString("id"), message.getInt("label"), message.getString("candidate"));
             iceCandidates.add(candidate);
           } else {
             Log.e(TAG, "Unknown message: " + messageString);
           }
         }
       }
-      Log.d(TAG, "RoomId: " + roomId + ". ClientId: " + clientId);
-      Log.d(TAG, "Initiator: " + initiator);
-      Log.d(TAG, "WSS url: " + wssUrl);
-      Log.d(TAG, "WSS POST url: " + wssPostUrl);
 
-      List<PeerConnection.IceServer> iceServers =
-          iceServersFromPCConfigJSON(roomJson.getString("pc_config"));
+      List<PeerConnection.IceServer> iceServers = iceServersFromPCConfigJSON(roomJson.getString("pc_config"));
       boolean isTurnPresent = false;
       for (PeerConnection.IceServer server : iceServers) {
         Log.d(TAG, "IceServer: " + server);
@@ -127,8 +111,7 @@ public class RoomParametersFetcher {
       }
       // Request TURN servers.
       if (!isTurnPresent && !roomJson.optString("ice_server_url").isEmpty()) {
-        List<PeerConnection.IceServer> turnServers =
-            requestTurnServers(roomJson.getString("ice_server_url"));
+        List<PeerConnection.IceServer> turnServers = requestTurnServers(roomJson.getString("ice_server_url"));
         for (PeerConnection.IceServer turnServer : turnServers) {
           Log.d(TAG, "TurnServer: " + turnServer);
           iceServers.add(turnServer);
@@ -186,8 +169,7 @@ public class RoomParametersFetcher {
 
   // Return the list of ICE servers described by a WebRTCPeerConnection
   // configuration string.
-  private List<PeerConnection.IceServer> iceServersFromPCConfigJSON(String pcConfig)
-      throws JSONException {
+  private List<PeerConnection.IceServer> iceServersFromPCConfigJSON(String pcConfig) throws JSONException {
     JSONObject json = new JSONObject(pcConfig);
     JSONArray servers = json.getJSONArray("iceServers");
     List<PeerConnection.IceServer> ret = new ArrayList<>();

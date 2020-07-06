@@ -75,10 +75,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
 
         // connect to room
         appRtcClient = new WebSocketRTCClient(this);
-        appRtcClient.connectToRoom(new AppRTCClient.RoomConnectionParameters(
-                "https://appr.tc",
-                roomID,
-                false));
+        appRtcClient.connectToRoom(roomID);
     }
 
     private void setSwappedFeeds(boolean isSwappedFeeds) {
