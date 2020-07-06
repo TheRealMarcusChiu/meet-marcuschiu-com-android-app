@@ -24,9 +24,9 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
     private SignalingEvents events;
     private WebSocketChannelClient wsClient;
     private ConnectionState roomState;
+
     private String messageUrl;
     private String leaveUrl;
-    private String roomID;
 
     public WebSocketRTCClient(SignalingEvents events) {
         this.events = events;
@@ -38,7 +38,6 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
 
     @Override
     public void connectToRoom(String roomID) {
-        this.roomID = roomID;
         handler.post(() -> {
             roomState = ConnectionState.NEW;
 
@@ -46,15 +45,14 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
                 @Override
                 public void onSignalingParametersReady(final SignalingParameters params) {
                     WebSocketRTCClient.this.handler.post(() -> {
+                        roomState = ConnectionState.CONNECTED;
+
                         initiator = params.initiator;
                         messageUrl = "https://appr.tc/message/" + roomID + "/" + params.clientId;
                         leaveUrl = "https://appr.tc/leave/" + roomID + "/" + params.clientId;
-                        roomState = ConnectionState.CONNECTED;
 
-                        // Fire connection and signaling parameters events.
                         events.onConnectedToRoom(params);
 
-                        // Connect and register WebSocket client.
                         wsClient.connect(params.wssUrl, params.wssPostUrl);
                         wsClient.register(roomID, params.clientId);
                     });
@@ -91,10 +89,6 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
     @Override
     public void sendOfferSdp(final SessionDescription sdp) {
         handler.post(() -> {
-            if (roomState != ConnectionState.CONNECTED) {
-                reportError("Sending offer SDP in non connected state.");
-                return;
-            }
             JSONObject json = new JSONObject();
             Util.jsonPut(json, "sdp", sdp.description);
             Util.jsonPut(json, "type", "offer");
@@ -141,7 +135,7 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
             Util.jsonPut(json, "type", "remove-candidates");
             JSONArray jsonArray = new JSONArray();
             for (final IceCandidate candidate : candidates) {
-                jsonArray.put(toJsonCandidate(candidate));
+                jsonArray.put(Util.toJsonCandidate(candidate));
             }
             Util.jsonPut(json, "candidates", jsonArray);
             if (initiator) {
@@ -156,75 +150,6 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
                 wsClient.send(json.toString());
             }
         });
-    }
-
-    // --------------------------------------------------------------------
-    // WebSocketChannelEvents interface implementation.
-    // All events are called by WebSocketChannelClient on a local looper thread
-    // (passed to WebSocket client constructor).
-    @Override
-    public void onWebSocketMessage(final String msg) {
-        if (wsClient.getState() != WebSocketChannelClient.WebSocketConnectionState.REGISTERED) {
-            Log.e("WSRTCClient", "Got WebSocket message in non registered state.");
-            return;
-        }
-        try {
-            JSONObject json = new JSONObject(msg);
-            String msgText = json.getString("msg");
-            String errorText = json.optString("error");
-            if (msgText.length() > 0) {
-                json = new JSONObject(msgText);
-                String type = json.optString("type");
-                if (type.equals("candidate")) {
-                    events.onRemoteIceCandidate(toJavaCandidate(json));
-                } else if (type.equals("remove-candidates")) {
-                    JSONArray candidateArray = json.getJSONArray("candidates");
-                    IceCandidate[] candidates = new IceCandidate[candidateArray.length()];
-                    for (int i = 0; i < candidateArray.length(); ++i) {
-                        candidates[i] = toJavaCandidate(candidateArray.getJSONObject(i));
-                    }
-                    events.onRemoteIceCandidatesRemoved(candidates);
-                } else if (type.equals("answer")) {
-                    if (initiator) {
-                        SessionDescription sdp = new SessionDescription(
-                                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));
-                        events.onRemoteDescription(sdp);
-                    } else {
-                        reportError("Received answer for call initiator: " + msg);
-                    }
-                } else if (type.equals("offer")) {
-                    if (!initiator) {
-                        SessionDescription sdp = new SessionDescription(
-                                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));
-                        events.onRemoteDescription(sdp);
-                    } else {
-                        reportError("Received offer for call receiver: " + msg);
-                    }
-                } else if (type.equals("bye")) {
-                    events.onChannelClose();
-                } else {
-                    reportError("Unexpected WebSocket message: " + msg);
-                }
-            } else {
-                if (errorText != null && errorText.length() > 0) {
-                    reportError("WebSocket error message: " + errorText);
-                } else {
-                    reportError("Unexpected WebSocket message: " + msg);
-                }
-            }
-        } catch (JSONException e) {
-            reportError("WebSocket message JSON parsing error: " + e.toString());
-        }
-    }
-
-    @Override
-    public void onWebSocketClose() {
-        events.onChannelClose();
-    }
-
-    @Override
-    public void onWebSocketError(String description) {
-        reportError("WebSocket error: " + description);
     }
 
 
@@ -264,18 +189,51 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
         httpConnection.send();
     }
 
-    private JSONObject toJsonCandidate(final IceCandidate candidate) {
-        JSONObject json = new JSONObject();
-        Util.jsonPut(json, "id", candidate.sdpMid);
-        Util.jsonPut(json, "label", candidate.sdpMLineIndex);
-        Util.jsonPut(json, "candidate", candidate.sdp);
-        return json;
+
+    ////////////////////////////
+    // WebSocketChannelEvents //
+    ////////////////////////////
+
+    @Override
+    public void onWebSocketMessage(final String msg) {
+        try {
+            JSONObject json = new JSONObject(msg).getJSONObject("msg");
+            String type = json.optString("type");
+
+            switch (type) {
+                case "candidate":
+                    events.onRemoteIceCandidate(Util.toJavaCandidate(json));
+                    break;
+                case "remove-candidates":
+                    JSONArray candidateArray = json.getJSONArray("candidates");
+                    IceCandidate[] candidates = new IceCandidate[candidateArray.length()];
+                    for (int i = 0; i < candidateArray.length(); ++i) {
+                        candidates[i] = Util.toJavaCandidate(candidateArray.getJSONObject(i));
+                    }
+                    events.onRemoteIceCandidatesRemoved(candidates);
+                    break;
+                case "answer":
+                case "offer":
+                    events.onRemoteDescription(new SessionDescription(SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp")));
+                    break;
+                case "bye":
+                    events.onChannelClose();
+                    break;
+                default:
+                    reportError("Unexpected WebSocket message: " + msg);
+            }
+        } catch (JSONException e) {
+            reportError("WebSocket message JSON parsing error: " + e.toString());
+        }
     }
 
-    private IceCandidate toJavaCandidate(JSONObject json) throws JSONException {
-        return new IceCandidate(
-                json.getString("id"),
-                json.getInt("label"),
-                json.getString("candidate"));
+    @Override
+    public void onWebSocketClose() {
+        events.onChannelClose();
+    }
+
+    @Override
+    public void onWebSocketError(String description) {
+        reportError("WebSocket error: " + description);
     }
 }

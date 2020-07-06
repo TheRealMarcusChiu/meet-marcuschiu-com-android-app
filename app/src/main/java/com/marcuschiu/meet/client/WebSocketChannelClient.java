@@ -27,7 +27,7 @@ public class WebSocketChannelClient {
     private String postServerUrl;
     private String roomID;
     private String clientID;
-    private WebSocketConnectionState state;
+    WebSocketConnectionState state;
     // Do not remove this member variable. If this is removed, the observer gets garbage collected and
     // this causes test breakages.
     private WebSocketObserver wsObserver;
@@ -37,15 +37,8 @@ public class WebSocketChannelClient {
     // client is not registered and are consumed in register() call.
     private final List<String> wsSendQueue = new ArrayList<>();
 
-    /**
-     * Possible WebSocket connection states.
-     */
     public enum WebSocketConnectionState {NEW, CONNECTED, REGISTERED, CLOSED, ERROR}
 
-    /**
-     * Callback interface for messages delivered on WebSocket.
-     * All events are dispatched from a looper executor thread.
-     */
     public interface WebSocketChannelEvents {
         void onWebSocketMessage(final String message);
 
@@ -60,10 +53,6 @@ public class WebSocketChannelClient {
         roomID = null;
         clientID = null;
         state = WebSocketConnectionState.NEW;
-    }
-
-    public WebSocketConnectionState getState() {
-        return state;
     }
 
     public void connect(final String wsUrl, final String postUrl) {
@@ -144,16 +133,8 @@ public class WebSocketChannelClient {
         }
     }
 
-    // This call can be used to send WebSocket messages before WebSocket
-    // connection is opened.
-    public void post(String message) {
-        checkIfCalledOnValidThread();
-        sendWSSMessage("POST", message);
-    }
-
     public void disconnect(boolean waitForComplete) {
         checkIfCalledOnValidThread();
-        Log.d(TAG, "Disconnect WebSocket. State: " + state);
         if (state == WebSocketConnectionState.REGISTERED) {
             // Send "bye" to WebSocket server.
             send("{\"type\": \"bye\"}");
@@ -181,7 +162,6 @@ public class WebSocketChannelClient {
                 }
             }
         }
-        Log.d(TAG, "Disconnecting WebSocket done.");
     }
 
     private void reportError(final String errorMessage) {

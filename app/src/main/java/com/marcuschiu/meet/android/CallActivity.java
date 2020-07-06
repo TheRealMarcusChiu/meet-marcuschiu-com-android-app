@@ -94,15 +94,14 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
     @Override
     public void onConnectedToRoom(final AppRTCClient.SignalingParameters sp) {
         runOnUiThread(() -> {
-            isInitiator = sp.initiator;
-
             VideoCapturer videoCapturer = CameraUtil.getVideoCapturer(this);
             if (videoCapturer == null) {
                 reportError("Failed to open camera");
             }
             pcClient.createPeerConnection(localVideo, remoteVideo, videoCapturer, sp);
 
-            if (sp.initiator) {
+            isInitiator = sp.initiator;
+            if (isInitiator) {
                 pcClient.createOffer(); // creates PeerConnectionEvents.onLocalDescription event
             } else {
                 if (sp.offerSdp != null) {
@@ -152,16 +151,13 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
     /////////////////////////////////////////////////////////////////
 
     // Send local peer connection SDP and ICE candidates to remote party.
-    // All callbacks are invoked from peer connection client looper thread
 
     @Override
     public void onLocalDescription(final SessionDescription sdp) {
-        if (appRtcClient != null) {
-            if (sdp.type == SessionDescription.Type.OFFER) {
-                appRtcClient.sendOfferSdp(sdp);
-            } else {
-                appRtcClient.sendAnswerSdp(sdp);
-            }
+        if (sdp.type == SessionDescription.Type.OFFER) {
+            appRtcClient.sendOfferSdp(sdp);
+        } else {
+            appRtcClient.sendAnswerSdp(sdp);
         }
         pcClient.setVideoMaxBitrate(1700);
     }
