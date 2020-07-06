@@ -285,13 +285,10 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
   // Helper functions.
   private void reportError(final String errorMessage) {
     Log.e(TAG, errorMessage);
-    handler.post(new Runnable() {
-      @Override
-      public void run() {
-        if (roomState != ConnectionState.ERROR) {
-          roomState = ConnectionState.ERROR;
-          events.onChannelError(errorMessage);
-        }
+    handler.post(() -> {
+      if (roomState != ConnectionState.ERROR) {
+        roomState = ConnectionState.ERROR;
+        events.onChannelError(errorMessage);
       }
     });
   }

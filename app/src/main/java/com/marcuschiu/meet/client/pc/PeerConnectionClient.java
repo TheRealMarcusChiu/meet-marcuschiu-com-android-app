@@ -1,7 +1,6 @@
 package com.marcuschiu.meet.client.pc;
 
 import android.content.Context;
-import android.os.Environment;
 import android.util.Log;
 
 import com.marcuschiu.meet.client.AppRTCClient;
@@ -37,7 +36,6 @@ import org.webrtc.voiceengine.WebRtcAudioTrack;
 import org.webrtc.voiceengine.WebRtcAudioTrack.AudioTrackStartErrorCode;
 import org.webrtc.voiceengine.WebRtcAudioUtils;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -54,7 +52,6 @@ public class PeerConnectionClient {
     public static final String VIDEO_TRACK_ID = "ARDAMSv0";
     public static final String AUDIO_TRACK_ID = "ARDAMSa0";
     public static final String VIDEO_TRACK_TYPE = "video";
-
     public static final String VIDEO_CODEC_VP8 = "VP8";
     public static final String AUDIO_CODEC_OPUS = "opus";
     private static final String VIDEO_CODEC_PARAM_START_BITRATE = "x-google-start-bitrate";
@@ -75,26 +72,27 @@ public class PeerConnectionClient {
     private final SDPObserver sdpObserver = new SDPObserver();
 
     private final EglBase rootEglBase;
-    private PeerConnectionFactory factory;
-    private PeerConnection peerConnection;
+    private PeerConnectionFactory factory = null;
+    private PeerConnection peerConnection = null;
 
-    private boolean videoCapturerStopped;
-    private boolean isError;
-    private AudioSource audioSource;
-    private VideoSource videoSource;
-    private List<VideoRenderer.Callbacks> remoteRenders;
+    private PeerConnectionEvents events;
+    private boolean isError = false;
+    private boolean isInitiator;
+
+    private VideoRenderer.Callbacks remoteVideo;
     private MediaConstraints sdpMediaConstraints;
     // Queued remote ICE candidates are consumed only after both local and
     // remote descriptions are set. Similarly local ICE candidates are sent to
     // remote peer after both local and remote description are set.
-    private List<IceCandidate> queuedRemoteCandidates;
-    private PeerConnectionEvents events;
-    private boolean isInitiator;
-    private SessionDescription localSdp; // either offer or answer SDP
-    private VideoCapturer videoCapturer;
+    private List<IceCandidate> queuedRemoteCandidates = null;
+    private SessionDescription localSdp = null; // either offer or answer SDP
 
+    private boolean videoCapturerStopped = false;
+    private VideoCapturer videoCapturer = null;
     private VideoTrack remoteVideoTrack;
     private RtpSender localVideoSender;
+    private AudioSource audioSource;
+    private VideoSource videoSource;
 
     public PeerConnectionClient() {
         rootEglBase = EglBase.create();
@@ -102,13 +100,6 @@ public class PeerConnectionClient {
 
     public void createPeerConnectionFactory(final Context context, final PeerConnectionEvents events) {
         this.events = events;
-        factory = null;
-        peerConnection = null;
-        videoCapturerStopped = false;
-        isError = false;
-        queuedRemoteCandidates = null;
-        localSdp = null;
-        videoCapturer = null;
 
         executor.execute(() -> {
             PeerConnectionFactory.InitializationOptions options = PeerConnectionFactory.InitializationOptions.builder(context)
@@ -117,9 +108,9 @@ public class PeerConnectionClient {
             PeerConnectionFactory.initialize(options);
 
             WebRtcAudioManager.setBlacklistDeviceForOpenSLESUsage(true);
-            WebRtcAudioUtils.setWebRtcBasedAcousticEchoCanceler(false);
-            WebRtcAudioUtils.setWebRtcBasedAutomaticGainControl(false);
-            WebRtcAudioUtils.setWebRtcBasedNoiseSuppressor(false);
+            WebRtcAudioUtils.setWebRtcBasedAcousticEchoCanceler(true);
+            WebRtcAudioUtils.setWebRtcBasedAutomaticGainControl(true);
+            WebRtcAudioUtils.setWebRtcBasedNoiseSuppressor(true);
 
             WebRtcAudioRecord.setErrorCallback(new WebRtcAudioRecordErrorCallback() {
                 @Override
@@ -163,7 +154,6 @@ public class PeerConnectionClient {
             factory = new PeerConnectionFactory(null,
                     new DefaultVideoEncoderFactory(rootEglBase.getEglBaseContext(), true, false),
                     new DefaultVideoDecoderFactory(rootEglBase.getEglBaseContext()));
-
 //            PeerConnectionFactory.builder()
 //                    .setVideoEncoderFactory(new DefaultVideoEncoderFactory(rootEglBase.getEglBaseContext(), true, false))
 //                    .setVideoDecoderFactory(new DefaultVideoDecoderFactory(rootEglBase.getEglBaseContext()))
@@ -171,8 +161,8 @@ public class PeerConnectionClient {
         });
     }
 
-    public void createPeerConnection(final VideoSink localRender, final List<VideoRenderer.Callbacks> remoteRenders, final VideoCapturer videoCapturer, final AppRTCClient.SignalingParameters signalingParameters) {
-        this.remoteRenders = remoteRenders;
+    public void createPeerConnection(final VideoSink localVideo, final VideoRenderer.Callbacks remoteVideo, final VideoCapturer videoCapturer, final AppRTCClient.SignalingParameters signalingParameters) {
+        this.remoteVideo = remoteVideo;
         this.videoCapturer = videoCapturer;
         executor.execute(() -> {
             try {
@@ -206,7 +196,7 @@ public class PeerConnectionClient {
                 videoCapturer.startCapture(HD_VIDEO_WIDTH, HD_VIDEO_HEIGHT, FRAMES_PER_SECOND);
                 VideoTrack localVideoTrack = factory.createVideoTrack(VIDEO_TRACK_ID, videoSource);
                 localVideoTrack.setEnabled(true);
-                localVideoTrack.addSink(localRender);
+                localVideoTrack.addSink(localVideo);
                 mediaStream.addTrack(localVideoTrack);
 
                 MediaConstraints audioConstraints = new MediaConstraints();
@@ -256,7 +246,7 @@ public class PeerConnectionClient {
                 videoSource.dispose();
                 videoSource = null;
             }
-            remoteRenders = null;
+            remoteVideo = null;
             if (factory != null) {
                 factory.dispose();
                 factory = null;
@@ -524,7 +514,6 @@ public class PeerConnectionClient {
 
     private void drainCandidates() {
         if (queuedRemoteCandidates != null) {
-            Log.d(TAG, "Add " + queuedRemoteCandidates.size() + " remote candidates");
             for (IceCandidate candidate : queuedRemoteCandidates) {
                 peerConnection.addIceCandidate(candidate);
             }
@@ -593,9 +582,7 @@ public class PeerConnectionClient {
                 if (stream.videoTracks.size() == 1) {
                     remoteVideoTrack = stream.videoTracks.get(0);
                     remoteVideoTrack.setEnabled(true);
-                    for (VideoRenderer.Callbacks remoteRender : remoteRenders) {
-                        remoteVideoTrack.addRenderer(new VideoRenderer(remoteRender));
-                    }
+                    remoteVideoTrack.addRenderer(new VideoRenderer(remoteVideo));
                 }
             });
         }

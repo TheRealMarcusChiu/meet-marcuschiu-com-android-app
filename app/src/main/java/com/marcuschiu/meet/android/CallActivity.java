@@ -21,17 +21,13 @@ import org.webrtc.SessionDescription;
 import org.webrtc.StatsReport;
 import org.webrtc.SurfaceViewRenderer;
 import org.webrtc.VideoCapturer;
-import org.webrtc.VideoRenderer;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 
 public class CallActivity extends Activity implements AppRTCClient.SignalingEvents, PeerConnectionEvents {
 
     ProxyVideoRendererCallbacks remoteVideo = new ProxyVideoRendererCallbacks();
     ProxyVideoSink localVideo = new ProxyVideoSink();
-    List<VideoRenderer.Callbacks> remoteVideos = new ArrayList<>();
 
     PeerConnectionClient pcClient = new PeerConnectionClient();
     AppRTCClient appRtcClient;
@@ -58,8 +54,6 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
         cameraSwitchButton.setOnClickListener(view -> pcClient.switchCamera());
 
         // Video Setup
-        remoteVideos.add(remoteVideo);
-
         svrSmall = findViewById(R.id.pip_video_view);
         svrSmall.setOnClickListener(view -> setSwappedFeeds(!isSwappedFeeds)); // Swap feeds on pip view click.
         svrSmall.init(pcClient.getRenderContext(), null);
@@ -109,7 +103,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
             if (videoCapturer == null) {
                 reportError("Failed to open camera");
             }
-            pcClient.createPeerConnection(localVideo, remoteVideos, videoCapturer, sp);
+            pcClient.createPeerConnection(localVideo, remoteVideo, videoCapturer, sp);
 
             if (sp.initiator) {
                 pcClient.createOffer(); // creates PeerConnectionEvents.onLocalDescription event
