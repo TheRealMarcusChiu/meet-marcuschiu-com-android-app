@@ -16,6 +16,7 @@ import org.webrtc.SessionDescription;
 public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.WebSocketChannelEvents {
 
     private enum ConnectionState {NEW, CONNECTED, CLOSED, ERROR}
+
     private enum MessageType {MESSAGE, LEAVE}
 
     private final Handler handler;
