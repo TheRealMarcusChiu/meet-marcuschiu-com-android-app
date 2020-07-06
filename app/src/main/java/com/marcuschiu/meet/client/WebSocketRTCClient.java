@@ -88,7 +88,6 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
         }
     }
 
-    // Send local offer SDP to the other participant.
     @Override
     public void sendOfferSdp(final SessionDescription sdp) {
         handler.post(() -> {
@@ -103,7 +102,6 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
         });
     }
 
-    // Send local answer SDP to the other participant.
     @Override
     public void sendAnswerSdp(final SessionDescription sdp) {
         handler.post(() -> {
@@ -114,7 +112,6 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
         });
     }
 
-    // Send Ice candidate to the other participant.
     @Override
     public void sendLocalIceCandidate(final IceCandidate candidate) {
         handler.post(() -> {
@@ -137,7 +134,6 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
         });
     }
 
-    // Send removed Ice candidates to the other participant.
     @Override
     public void sendLocalIceCandidateRemovals(final IceCandidate[] candidates) {
         handler.post(() -> {
@@ -231,8 +227,7 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
         reportError("WebSocket error: " + description);
     }
 
-    // --------------------------------------------------------------------
-    // Helper functions.
+
     private void reportError(final String errorMessage) {
         Log.e("WSRTCClient", errorMessage);
         handler.post(() -> {
@@ -245,8 +240,7 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
 
     // Send SDP or ICE candidate to a room server.
     private void sendPostMessage(final MessageType messageType, final String url, final String message) {
-        AsyncHttpURLConnection httpConnection =
-                new AsyncHttpURLConnection("POST", url, message, new AsyncHttpURLConnection.AsyncHttpEvents() {
+        AsyncHttpURLConnection httpConnection = new AsyncHttpURLConnection("POST", url, message, new AsyncHttpURLConnection.AsyncHttpEvents() {
                     @Override
                     public void onHttpError(String errorMessage) {
                         reportError("GAE POST error: " + errorMessage);
