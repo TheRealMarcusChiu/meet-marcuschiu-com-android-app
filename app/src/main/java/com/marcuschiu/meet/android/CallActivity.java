@@ -70,7 +70,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
 
         pcClient.createPeerConnectionFactory(getApplicationContext(), this);
 
-        String roomID = "JESUS-" + new Random().nextInt(100);
+        String roomID = "JESUS-" + new Random().nextInt(1000);
         ((TextView) findViewById(R.id.roomID)).setText("ROOM ID: " + roomID);
 
         // connect to room

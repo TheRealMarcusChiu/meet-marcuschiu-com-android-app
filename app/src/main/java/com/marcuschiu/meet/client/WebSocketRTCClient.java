@@ -196,8 +196,14 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelClient.
 
     @Override
     public void onWebSocketMessage(final String msg) {
+        if (wsClient.state != WebSocketChannelClient.WebSocketConnectionState.REGISTERED) {
+            Log.e("WSRTCClient", "Got WebSocket message in non registered state.");
+            return;
+        }
         try {
-            JSONObject json = new JSONObject(msg).getJSONObject("msg");
+            JSONObject json = new JSONObject(msg);
+            String msgText = json.getString("msg");
+            json = new JSONObject(msgText);
             String type = json.optString("type");
 
             switch (type) {
