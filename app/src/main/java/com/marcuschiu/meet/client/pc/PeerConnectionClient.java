@@ -80,7 +80,6 @@ public class PeerConnectionClient {
 
     private boolean videoCapturerStopped;
     private boolean isError;
-    private VideoSink localRender;
     private AudioSource audioSource;
     private VideoSource videoSource;
     private List<VideoRenderer.Callbacks> remoteRenders;
@@ -173,7 +172,6 @@ public class PeerConnectionClient {
     }
 
     public void createPeerConnection(final VideoSink localRender, final List<VideoRenderer.Callbacks> remoteRenders, final VideoCapturer videoCapturer, final AppRTCClient.SignalingParameters signalingParameters) {
-        this.localRender = localRender;
         this.remoteRenders = remoteRenders;
         this.videoCapturer = videoCapturer;
         executor.execute(() -> {
@@ -183,7 +181,7 @@ public class PeerConnectionClient {
                 ///////////////////////////
                 sdpMediaConstraints = new MediaConstraints();
                 sdpMediaConstraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"));
-                sdpMediaConstraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"));
+                sdpMediaConstraints.mandatory.add(new MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"));
 
                 ////////////////////////////
                 // CREATE PEER CONNECTION //
@@ -258,7 +256,6 @@ public class PeerConnectionClient {
                 videoSource.dispose();
                 videoSource = null;
             }
-            localRender = null;
             remoteRenders = null;
             if (factory != null) {
                 factory.dispose();

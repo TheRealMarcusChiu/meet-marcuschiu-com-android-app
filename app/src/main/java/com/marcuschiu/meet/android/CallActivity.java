@@ -8,9 +8,9 @@ import android.widget.ImageButton;
 import android.widget.TextView;
 
 import com.marcuschiu.meet.client.AppRTCClient;
+import com.marcuschiu.meet.client.WebSocketRTCClient;
 import com.marcuschiu.meet.client.pc.PeerConnectionClient;
 import com.marcuschiu.meet.client.pc.PeerConnectionEvents;
-import com.marcuschiu.meet.client.WebSocketRTCClient;
 import com.marcuschiu.meet.util.CameraUtil;
 import com.marcuschiu.meet.util.ProxyVideoRendererCallbacks;
 import com.marcuschiu.meet.util.ProxyVideoSink;
@@ -226,7 +226,9 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
     public void onStop() {
         super.onStop();
         activityRunning = false;
-        pcClient.stopVideoSource();
+        if (pcClient != null) {
+            pcClient.stopVideoSource();
+        }
     }
 
     @Override
